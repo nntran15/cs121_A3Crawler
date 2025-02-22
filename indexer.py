@@ -53,7 +53,14 @@
 
 '''
 
+import os
+import json
+from pathlib import Path
+from nltk.tokenize import word_tokenize # type: ignore
+
+
 documentCount = 0   # Records number of unique documents parsed through
+dev_path = "./DEV/"  # Path to the local, UNZIPPED DEV folder
 
 
 def parser(file):
@@ -84,5 +91,30 @@ def print_report():
     return 
 
 
-def main():
-    return
+if __name__ == "__main__":
+
+    # Retrieves subfolders under ./DEV/ (i.e. "aiclub_ics_uci_edu", "alderis_ics_uci_edu", etc.)
+    list_of_subdirectories = os.listdir(dev_path)
+
+    # Iterates through each subfolder               
+    for subdirectory in list_of_subdirectories:
+
+        # Changes relative path to absolute path
+        subdirectory_path = Path(dev_path) / subdirectory       
+
+        # Iterates through each .json file in each subfolder
+        for json_file in subdirectory_path.rglob("*.json"):
+            with json_file.open("r") as file: 
+                
+                try:
+                    data = json.load(file)
+                    
+                    # Extract information from .json file
+                    # NOTE: we use ".get()" since *.json content follows a dictionary format 
+                    # NOTE: invalid or missing responses return None
+                    url = data.get("url")
+                    content = data.get("content")
+                    encoding = data.get("encoding")     # NOTE: Cannot assume ascii/utf-8! Got some EUC-KR, Windows-1252, ISO-8859-1...
+
+                except Exception as e:
+                    print(f"Error reading '{json_file.name}': {e}")
