@@ -94,6 +94,8 @@ def parser(file):
     url = data.get("url")
     content = data.get("content")
     encoding = data.get("encoding")     # NOTE: Cannot assume ascii/utf-8! Got some EUC-KR, Windows-1252, ISO-8859-1...
+    
+    frequency_map = {}
 
     try:
         # Initialize HTML parser
@@ -119,39 +121,44 @@ def parser(file):
 
         # Extract title
         title_texts = [soup.title.string.strip()] if soup.title and soup.title.string else []
+        title_texts = word_tokenize(title_texts[0])
+        title_texts = [word for word in title_texts if word.isalnum()]
         title_texts = [stemmer.stem(word) for word in title_texts]
 
         # Create token frequency map
-        frequency_map = {}
         for word in stems:
             if word in frequency_map:
                 frequency_map[word] += 1
             else:
                 frequency_map[word] = 1
 
-        # Increase weight of...
-        #   - Bolded words by 3
-        #   - Header words by 5
-        #   - Title words by 10
         for word in bold_texts:
-            if word in frequency_map and not word in stop_words:
-                frequency_map[word] *= 3
-        for word in header_texts:
-            if word in frequency_map and not word in stop_words:
-                frequency_map[word] *= 5
-        for word in title_texts:
-            if word in frequency_map and not word in stop_words:
-                frequency_map[word] *= 10  
+            if word in frequency_map:
+                frequency_map[word] += 3
+            else:
+                frequency_map[word] = 3
 
-        print(frequency_map)
+        for word in header_texts:
+            if word in frequency_map:
+                frequency_map[word] += 5
+            else:
+                frequency_map[word] = 5
+        
+        for word in title_texts:
+            if word in frequency_map:
+                frequency_map[word] += 10
+            else:
+                frequency_map[word] = 10
+
+        print(f"URL: {url} --- TITLE: {soup.title.string.strip()} --- {frequency_map}\n")
     
     except Exception as e:
         print(f"An error has occurred: {e}")
 
 
-def merge(map1, map2):
+def merge(map1, map2, url1, url2):
     # INPUT: two frequency maps represented by sets (token : count)
-    # OUTPUT: a singular partially inverted index merged alphabetically from index1 and index2
+    # OUTPUT: a singular frequency map merged alphabetically from map1 and map2
 
     pass
 
