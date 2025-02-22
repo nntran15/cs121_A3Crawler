@@ -36,24 +36,24 @@
             NOTE: I'm assuming we won't have to analyze validity like Assignment2
             2a) Parser should be able to detect "broken HTML" (via Assignment3 page)
             2b) Parser should tokenize words from on the document
-            2c) Parser should return a "partial index" list (token : count)
+            2c) Parser should return a token frequency map (token : count)
         3) Repeat (2) for each document still in the corpus
             3a) Initialize a count for each document for report
-        4) Run a sorting algorithm through each partial index in O(n log n)
-        5) Merge each partial index together also in O(n log n)-- mergesort?
-        6) Count number of keys == number of tokens
-        7) Calculate file size
-        8) Print (3a), (6), (7)
+        4) Run a sorting algorithm through each frequency map in O(n log n)
+        5) Merge each map together (also in O(n log n)) to get a term-document matrix (TDM)
+        6) Convert the TDM to an inverted index
+        7) Count number of keys == number of tokens
+        8) Calculate full inverted index's file size
+        9) Print (3a), (7), (8)
 
     Methods:
         - parser(file) → handles step (2), where "document" = file
-        - merge(index1, index2) → merge index1 and index2
+        - merge(map1, map2) → merge map1 and map2
         - print_report() → prints data for report 
 
 '''
 
 import os
-import re
 import json
 from pathlib import Path
 from nltk.tokenize import word_tokenize # type: ignore
@@ -65,6 +65,22 @@ documentCount = 0       # Records number of unique documents parsed through
 dev_path = "./DEV/"     # Path to the local, UNZIPPED DEV folder
 inverted_index = {}     # Complete inverted index storing (token : count)
 
+stop_words = ['a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an',
+    'and', 'any', 'are', 'as', 'at', 'be', 'because', 'been', 'before',
+    'being', 'below', 'between', 'both', 'but', 'by', 'could', 'did', 'do',
+    'does', 'doing', 'down', 'during', 'each', 'few', 'for', 'from',
+    'further', 'had', 'has', 'have', 'having', 'he', 'her', 'here', 'hers',
+    'herself', 'him', 'himself', 'his', 'how', 'i', 'if', 'in', 'into',
+    'is', 'it', "it's", 'its', 'itself', 'just', 'me', 'more', 'most',
+    'my', 'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only',
+    'or', 'other', 'our', 'ours', 'ourselves', 'out', 'over', 'own', 's',
+    'same', 'she', "she's", 'should', 'so', 'some', 'such', 't', 'than',
+    'that', "that's", 'the', 'their', 'theirs', 'them', 'themselves',
+    'then', 'there', 'these', 'they', 'this', 'those', 'through', 'to',
+    'too', 'under', 'until', 'up', 'very', 'was', 'we', 'were', 'what',
+    'when', 'where', 'which', 'while', 'who', 'whom', 'why', 'will', 'with',
+    'you', 'your', 'yours', 'yourself', 'yourselves']
+    
 
 def parser(file):
     # INPUT: a JSON file
@@ -84,15 +100,6 @@ def parser(file):
         soup = BeautifulSoup(content, "html.parser")
         page_text = soup.get_text()
 
-        # Extract bolded text
-        bold_texts = [bolded.get_text(strip = True) for bolded in soup.find_all(["b", "strong"])]
-
-        # Extract headings
-        header_texts = [headers.get_text(strip = True) for headers in soup.find_all(["h1", "h2", "h3"])]
-
-        # Extract title
-        title_texts = [soup.title.string if soup.title.string else None]
-
         # Extract tokens
         tokens = word_tokenize(page_text)
         tokens = [word for word in tokens if word.isalnum()]
@@ -102,22 +109,48 @@ def parser(file):
         stems = [stemmer.stem(word) for word in tokens]
         stems = sorted(stems)
 
-        # Create partial inverted index
-        partial_inverted_index = {}
-        for word in stems:
-            if word in partial_inverted_index:
-                partial_inverted_index[word] += 1
-            else:
-                partial_inverted_index[word] = 1
+        # Extract bolded text
+        bold_texts = [bolded.get_text(strip = True) for bolded in soup.find_all(["b", "strong"])]
+        bold_texts = [stemmer.stem(word) for word in bold_texts]
 
-        print(partial_inverted_index)
+        # Extract headings
+        header_texts = [headers.get_text(strip = True) for headers in soup.find_all(["h1", "h2", "h3"])]
+        header_texts = [stemmer.stem(word) for word in header_texts]
+
+        # Extract title
+        title_texts = [soup.title.string.strip()] if soup.title and soup.title.string else []
+        title_texts = [stemmer.stem(word) for word in title_texts]
+
+        # Create token frequency map
+        frequency_map = {}
+        for word in stems:
+            if word in frequency_map:
+                frequency_map[word] += 1
+            else:
+                frequency_map[word] = 1
+
+        # Increase weight of...
+        #   - Bolded words by 3
+        #   - Header words by 5
+        #   - Title words by 10
+        for word in bold_texts:
+            if word in frequency_map and not word in stop_words:
+                frequency_map[word] *= 3
+        for word in header_texts:
+            if word in frequency_map and not word in stop_words:
+                frequency_map[word] *= 5
+        for word in title_texts:
+            if word in frequency_map and not word in stop_words:
+                frequency_map[word] *= 10  
+
+        print(frequency_map)
     
     except Exception as e:
         print(f"An error has occurred: {e}")
 
 
-def merge(index1, index2):
-    # INPUT: two partially inverted indexes represented by sets (token : count)
+def merge(map1, map2):
+    # INPUT: two frequency maps represented by sets (token : count)
     # OUTPUT: a singular partially inverted index merged alphabetically from index1 and index2
 
     pass
@@ -143,10 +176,7 @@ if __name__ == "__main__":
 
         # Iterates through each .json file in each subfolder
         for json_file in subdirectory_path.rglob("*.json"):
-            with json_file.open("r") as file: 
-                
-                try:
-                    parser(file)
+            with json_file.open("r") as file:
 
-                except Exception as e:
-                    print(f"Error reading '{json_file.name}': {e}")
+                # Parse through each .json file 
+                parser(file)
