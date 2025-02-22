@@ -54,20 +54,59 @@
 '''
 
 import os
+import re
 import json
 from pathlib import Path
 from nltk.tokenize import word_tokenize # type: ignore
+from nltk.stem import PorterStemmer # type : ignore
+from bs4 import BeautifulSoup
 
 
-documentCount = 0   # Records number of unique documents parsed through
-dev_path = "./DEV/"  # Path to the local, UNZIPPED DEV folder
+documentCount = 0       # Records number of unique documents parsed through
+dev_path = "./DEV/"     # Path to the local, UNZIPPED DEV folder
+inverted_index = {}     # Complete inverted index storing (token : count)
 
 
 def parser(file):
     # INPUT: a JSON file
     # OUTPUT: a partial inverted index represented by a set (token : count)
-     
-    return
+
+    data = json.load(file)
+                    
+    # Extract information from .json file
+    # NOTE: we use ".get()" since *.json content follows a dictionary format 
+    # NOTE: invalid or missing responses return None
+    url = data.get("url")
+    content = data.get("content")
+    encoding = data.get("encoding")     # NOTE: Cannot assume ascii/utf-8! Got some EUC-KR, Windows-1252, ISO-8859-1...
+
+    try:
+        # Initialize HTML parser
+        soup = BeautifulSoup(content, "html.parser")
+        page_text = soup.get_text()
+
+        # Extract bolded text
+        bold_texts = [bolded.get_text(strip = True) for bolded in soup.find_all(["b", "strong"])]
+
+        # Extract headings
+        header_texts = [headers.get_text(strip = True) for headers in soup.find_all(["h1", "h2", "h3"])]
+
+        # Extract title
+        title_texts = [soup.title.string if soup.title.string else None]
+
+        # Extract tokens
+        tokens = word_tokenize(page_text)
+        tokens = [word for word in tokens if word.isalnum()]
+
+        # Extract stems
+        stemmer = PorterStemmer()
+        stems = [stemmer.stem(word) for word in tokens]
+
+        print(stems)
+    except Exception as e:
+        print(f"An error has occurred: {e}")
+
+
 
 
 def sort(index):
@@ -107,14 +146,7 @@ if __name__ == "__main__":
             with json_file.open("r") as file: 
                 
                 try:
-                    data = json.load(file)
-                    
-                    # Extract information from .json file
-                    # NOTE: we use ".get()" since *.json content follows a dictionary format 
-                    # NOTE: invalid or missing responses return None
-                    url = data.get("url")
-                    content = data.get("content")
-                    encoding = data.get("encoding")     # NOTE: Cannot assume ascii/utf-8! Got some EUC-KR, Windows-1252, ISO-8859-1...
+                    parser(file)
 
                 except Exception as e:
                     print(f"Error reading '{json_file.name}': {e}")
