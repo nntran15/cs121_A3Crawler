@@ -154,6 +154,8 @@ def parser(file):
     
     except Exception as e:
         print(f"An error has occurred: {e}")
+    
+    return frequency_map
 
 
 def merge(map1, map2, url1, url2):
