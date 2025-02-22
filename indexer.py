@@ -47,7 +47,6 @@
 
     Methods:
         - parser(file) → handles step (2), where "document" = file
-        - sort(index) → sort the inputted partial index
         - merge(index1, index2) → merge index1 and index2
         - print_report() → prints data for report 
 
@@ -101,33 +100,34 @@ def parser(file):
         # Extract stems
         stemmer = PorterStemmer()
         stems = [stemmer.stem(word) for word in tokens]
+        stems = sorted(stems)
 
-        print(stems)
+        # Create partial inverted index
+        partial_inverted_index = {}
+        for word in stems:
+            if word in partial_inverted_index:
+                partial_inverted_index[word] += 1
+            else:
+                partial_inverted_index[word] = 1
+
+        print(partial_inverted_index)
+    
     except Exception as e:
         print(f"An error has occurred: {e}")
-
-
-
-
-def sort(index):
-    # INPUT: a partial inverted index represented by a set (token : count)
-    # OUTPUT: the index sorted alphabetically by the key (the token)
-
-    return
 
 
 def merge(index1, index2):
     # INPUT: two partially inverted indexes represented by sets (token : count)
     # OUTPUT: a singular partially inverted index merged alphabetically from index1 and index2
 
-    return
+    pass
 
 
 def print_report():
     # INPUT: none
     # OUTPUT: prints documentCount, tokenCount, indexFileSize
 
-    return 
+    pass 
 
 
 if __name__ == "__main__":
