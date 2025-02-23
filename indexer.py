@@ -59,11 +59,12 @@ from pathlib import Path
 from nltk.tokenize import word_tokenize # type: ignore
 from nltk.stem import PorterStemmer     # type: ignore 
 from bs4 import BeautifulSoup
+from collections import defaultdict
 
 
-documentCount = 0       # Records number of unique documents parsed through
-dev_path = "./DEV/"     # Path to the local, UNZIPPED DEV folder
-inverted_index = {}     # Complete inverted index storing (token : documentID)
+documentCount = 0                   # Records number of unique documents parsed through
+dev_path = "./DEV/"                 # Path to the local, UNZIPPED DEV folder
+inverted_index = defaultdict(dict)  # Complete inverted index storing (token : (document : count))
 
 stop_words = ['a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an',
     'and', 'any', 'are', 'as', 'at', 'be', 'because', 'been', 'before',
@@ -94,10 +95,14 @@ def parser(file):
     url = data.get("url")
     content = data.get("content")
     encoding = data.get("encoding")     # NOTE: Cannot assume ascii/utf-8! Got some EUC-KR, Windows-1252, ISO-8859-1...
-    
-    frequency_map = {}
+
+    # Skip empty content
+    if not content:
+        return {}
 
     try:
+        # Check for valid HTML?
+
         # Initialize HTML parser
         soup = BeautifulSoup(content, "html.parser")
         page_text = soup.get_text()
@@ -113,60 +118,49 @@ def parser(file):
 
         # Extract bolded text
         bold_texts = [bolded.get_text(strip = True) for bolded in soup.find_all(["b", "strong"])]
-        bold_texts = word_tokenize(bold_texts[0])
-        bold_texts = [word for word in bold_texts if word.isalnum()]
-        bold_texts = [stemmer.stem(word) for word in bold_texts]
+        bold_texts = word_tokenize(" ".join(bold_texts))
+        bold_texts = [stemmer.stem(word) for word in bold_texts if word.isalnum()]
 
         # Extract headings
         header_texts = [headers.get_text(strip = True) for headers in soup.find_all(["h1", "h2", "h3"])]
-        header_texts = word_tokenize(header_texts[0])
-        header_texts = [word for word in header_texts if word.isalnum()]
-        header_texts = [stemmer.stem(word) for word in header_texts]
+        header_texts = word_tokenize(" ".join(header_texts))
+        header_texts = [stemmer.stem(word) for word in header_texts if word.isalnum()]
 
         # Extract title
         title_texts = [soup.title.string.strip()] if soup.title and soup.title.string else []
         title_texts = word_tokenize(title_texts[0])
-        title_texts = [word for word in title_texts if word.isalnum()]
-        title_texts = [stemmer.stem(word) for word in title_texts]
+        title_texts = [stemmer.stem(word) for word in title_texts if word.isalnum()]
 
+    except Exception as e:
+        print(f"An error has occurred while extracting info: {e}")
+
+    try: 
         # Create token frequency map, increase weights if necessary
         # NOTE: I'm excluding stopwords in bolded, header, and title words when increasing frequency
+
+        frequency_map = defaultdict(int)
+
         for word in stems:
-            if word in frequency_map:
-                frequency_map[word] += 1
-            else:
-                frequency_map[word] = 1
+            frequency_map[word] += 1
 
         for word in bold_texts:
-            if word in stop_words:
-                continue
-            if word in frequency_map:
+            if word not in stop_words:
                 frequency_map[word] += 3
-            else:
-                frequency_map[word] = 3
 
         for word in header_texts:   
-            if word in stop_words:
-                continue
-            if word in frequency_map:
+            if word not in stop_words:
                 frequency_map[word] += 5
-            else:
-                frequency_map[word] = 5
         
         for word in title_texts: 
-            if word in stop_words:
-                continue
-            if word in frequency_map:
+            if word not in stop_words:
                 frequency_map[word] += 10
-            else:
-                frequency_map[word] = 10
 
         print(f"URL: {url}\nTITLE: {soup.title.string.strip()}\nFrequency map: {frequency_map}\n")
+        return frequency_map
     
     except Exception as e:
-        print(f"An error has occurred: {e}")
-    
-    return frequency_map
+        print(f"An error has occurred while creating frequency_map: {e}")
+        return {}
 
 
 def merge(map1, map2, json1, json2):
@@ -189,7 +183,7 @@ if __name__ == "__main__":
     # Retrieves subfolders under ./DEV/ (i.e. "aiclub_ics_uci_edu", "alderis_ics_uci_edu", etc.)
     list_of_subdirectories = os.listdir(dev_path)
 
-    # Iterates through each subfolder               
+    # Iterates through each subfolder           
     for subdirectory in list_of_subdirectories:
 
         # Changes relative path to absolute path
@@ -197,6 +191,8 @@ if __name__ == "__main__":
 
         # Iterates through each .json file in each subfolder
         for json_file in subdirectory_path.rglob("*.json"):
+            
+            document_name = json_file.name
             with json_file.open("r") as file:
 
                 # Parse through each .json file 
