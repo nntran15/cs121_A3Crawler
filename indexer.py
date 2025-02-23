@@ -174,7 +174,10 @@ def merge(map1, map2, json1, json2):
 def print_report():
     # INPUT: none
     # OUTPUT: prints documentCount, tokenCount, indexFileSize
-
+    index_size = sum(len(str(value)) for value in inverted_index.values())  # Approximate size in bytes
+    print(f"Documents Indexed: {documentCount}")
+    print(f"Unique Tokens: {len(inverted_index)}")
+    print(f"Index Size: {index_size / 1024:.2f} KB")
     pass 
 
 
