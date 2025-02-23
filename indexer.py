@@ -50,6 +50,7 @@
 
 import os
 import json
+import pickle
 from pathlib import Path
 from nltk.tokenize import word_tokenize # type: ignore
 from nltk.stem import PorterStemmer     # type: ignore 
@@ -59,7 +60,7 @@ from collections import defaultdict
 documentCount = 0                                       # Records number of unique documents parsed through
 dev_path = "./DEV/"                                     # Path to the local, UNZIPPED DEV folder
 output_dir = "./tmp/"                                   # Where all files to disk will be saved
-inverted_index = defaultdict(lambda: defaultdict(int))  # Complete inverted index storing (token : (document : count))
+final_index = defaultdict(lambda: defaultdict(int))     # Complete inverted index storing (token : (document : count))
 batch_size = 1000                                       # Maximum number of iterated-through *.json file before we save to disk
 
 stop_words = ['a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an',
@@ -86,16 +87,16 @@ def save_partial_inverted_index(inverted_index, filename):
     os.makedirs(os.path.dirname(filename), exist_ok = True)     # Make directory if does not exist
     tmp = dict(inverted_index)                                  # json.dump doesn't work well with defaultdict
 
-    with open(filename, "w") as file:
-        json.dump(tmp, file)
+    with open(filename, "wb") as file:
+        pickle.dump(tmp, file)
 
 
 def load_partial_inverted_index(filename):
     # INPUT: an inverted index's filename on disk
     # OUTPUT: inverted index loaded into memory
 
-    with open(filename, "r") as file:
-        return json.load(file)
+    with open(filename, "rb") as file:
+        return pickle.load(file)
     
 
 def merge_partial_inverted_index_with_frequency_map(inverted_index, freq_map, doc_name):
@@ -117,7 +118,7 @@ def merge_partial_indexes(output_dir, filename_format, num_partial_indexes):
     #   - num_partial_indexes: number of created partial indexes we need to combine
     # OUTPUT: a final inverted index
 
-    final_index = defaultdict(lambda: defaultdict(int))
+    global final_index
 
     # Iterate through all partial indexes
     for i in range(num_partial_indexes):
@@ -130,7 +131,7 @@ def merge_partial_indexes(output_dir, filename_format, num_partial_indexes):
                 final_index[token][doc_id] += count     # Add to final index (token : (doc_id : count += count))
 
     # Save to disk
-    save_partial_inverted_index(final_index, os.path.join(output_dir, "final_inverted_index.json"))
+    save_partial_inverted_index(final_index, os.path.join(output_dir, "final_inverted_index.pkl"))
     print("Final inverted index saved.")
 
 
@@ -142,8 +143,8 @@ def process_files(dev_path, output_dir):
 
     count = 0                                                       # Number of processed .json files so far
     partial_index_counter = 0                                       # Number of PIIs on disk
-    partial_index_filename_format = "partial_index_{batch_id}.json" # Format of each PII on disk
-    global inverted_index                                           
+    partial_index_filename_format = "partial_index_{batch_id}.pkl"  # Format of each PII on disk
+    inverted_index = defaultdict(lambda: defaultdict(int))                                      
     global documentCount
 
     # Iterate through each subfolder in the ./DEV/ directory
@@ -225,9 +226,11 @@ def parser(file):
         header_texts = [stemmer.stem(word) for word in header_texts if word.isalnum()]
 
         # Extract title
-        title_texts = [soup.title.string.strip()] if soup.title and soup.title.string else []
-        title_texts = word_tokenize(title_texts[0])
-        title_texts = [stemmer.stem(word) for word in title_texts if word.isalnum()]
+        title_texts = []
+        if soup.title and soup.title.string:
+            title_texts = [soup.title.string.strip()] if soup.title and soup.title.string else []
+            title_texts = word_tokenize(title_texts[0])
+            title_texts = [stemmer.stem(word) for word in title_texts if word.isalnum()]
 
     except Exception as e:
         print(f"An error has occurred while extracting info: {e}")
@@ -267,5 +270,6 @@ if __name__ == "__main__":
 
     # Results
     print(f"Number of documents indexed through: {documentCount}")
-    print(f"Number of unique tokens: {len(inverted_index)}")
-    print(f"Size of the inverted index on disk: {os.path.getsize(inverted_index)}")
+    print(f"Number of unique tokens: {len(final_index)}")
+    final_index_location = os.path.join(output_dir, "final_inverted_index.pkl")
+    print(f"Size of the inverted index on disk: {os.path.getsize(final_index_location)/1000000} megabytes")
