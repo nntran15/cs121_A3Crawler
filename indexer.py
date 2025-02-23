@@ -119,6 +119,8 @@ def parser(file):
 
         # Extract headings
         header_texts = [headers.get_text(strip = True) for headers in soup.find_all(["h1", "h2", "h3"])]
+        header_texts = word_tokenize(header_texts[0])
+        header_texts = [word for word in header_texts if word.isalnum()]
         header_texts = [stemmer.stem(word) for word in header_texts]
 
         # Extract title
