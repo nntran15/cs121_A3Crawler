@@ -57,13 +57,13 @@ import os
 import json
 from pathlib import Path
 from nltk.tokenize import word_tokenize # type: ignore
-from nltk.stem import PorterStemmer # type : ignore
+from nltk.stem import PorterStemmer     # type: ignore 
 from bs4 import BeautifulSoup
 
 
 documentCount = 0       # Records number of unique documents parsed through
 dev_path = "./DEV/"     # Path to the local, UNZIPPED DEV folder
-inverted_index = {}     # Complete inverted index storing (token : count)
+inverted_index = {}     # Complete inverted index storing (token : documentID)
 
 stop_words = ['a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an',
     'and', 'any', 'are', 'as', 'at', 'be', 'because', 'been', 'before',
@@ -113,6 +113,8 @@ def parser(file):
 
         # Extract bolded text
         bold_texts = [bolded.get_text(strip = True) for bolded in soup.find_all(["b", "strong"])]
+        bold_texts = word_tokenize(bold_texts[0])
+        bold_texts = [word for word in bold_texts if word.isalnum()]
         bold_texts = [stemmer.stem(word) for word in bold_texts]
 
         # Extract headings
@@ -125,7 +127,8 @@ def parser(file):
         title_texts = [word for word in title_texts if word.isalnum()]
         title_texts = [stemmer.stem(word) for word in title_texts]
 
-        # Create token frequency map
+        # Create token frequency map, increase weights if necessary
+        # NOTE: I'm excluding stopwords in bolded, header, and title words when increasing frequency
         for word in stems:
             if word in frequency_map:
                 frequency_map[word] += 1
@@ -133,24 +136,30 @@ def parser(file):
                 frequency_map[word] = 1
 
         for word in bold_texts:
+            if word in stop_words:
+                continue
             if word in frequency_map:
                 frequency_map[word] += 3
             else:
                 frequency_map[word] = 3
 
-        for word in header_texts:
+        for word in header_texts:   
+            if word in stop_words:
+                continue
             if word in frequency_map:
                 frequency_map[word] += 5
             else:
                 frequency_map[word] = 5
         
-        for word in title_texts:
+        for word in title_texts: 
+            if word in stop_words:
+                continue
             if word in frequency_map:
                 frequency_map[word] += 10
             else:
                 frequency_map[word] = 10
 
-        print(f"URL: {url} --- TITLE: {soup.title.string.strip()} --- {frequency_map}\n")
+        print(f"URL: {url}\nTITLE: {soup.title.string.strip()}\nFrequency map: {frequency_map}\n")
     
     except Exception as e:
         print(f"An error has occurred: {e}")
@@ -158,9 +167,10 @@ def parser(file):
     return frequency_map
 
 
-def merge(map1, map2, url1, url2):
+def merge(map1, map2, json1, json2):
     # INPUT: two frequency maps represented by sets (token : count)
     # OUTPUT: a singular frequency map merged alphabetically from map1 and map2
+    # NOTE: I'm going to use the name of the *.json file to uniquely identify documents 
 
     pass
 
