@@ -26,9 +26,9 @@
         url: contains the URL of the page. Ignore the fragment parts, if you see them around
         content: contains the content of the page, as found during crawling
         encoding: an indication of the encoding of the webpage
-'''
 
-''' PROGRAM STRUCTURE:
+
+    PROGRAM STRUCTURE:
 
     Steps:
         1) Create a global data structure to hold inverted index
@@ -40,17 +40,12 @@
         3) Repeat (2) for each document still in the corpus
             3a) Initialize a count for each document for report
         4) Run a sorting algorithm through each frequency map in O(n log n)
-        5) Merge each map together (also in O(n log n)) to get a term-document matrix (TDM)
-        6) Convert the TDM to an inverted index
-        7) Count number of keys == number of tokens
-        8) Calculate full inverted index's file size
-        9) Print (3a), (7), (8)
-
-    Methods:
-        - parser(file) → handles step (2), where "document" = file
-        - merge(map1, map2) → merge map1 and map2
-        - print_report() → prints data for report 
-
+        5) Merge each map together (also in O(n log n)) to get a partially inverted index
+        6) Every <batch_size> processed .json files, save the PII to disk
+        7) Merge all PIIs to get final inverted index
+        8) Count number of keys == number of tokens
+        9) Calculate full inverted index's file size
+        10) Print (3a), (8), (9)
 '''
 
 import os
@@ -61,10 +56,11 @@ from nltk.stem import PorterStemmer     # type: ignore
 from bs4 import BeautifulSoup
 from collections import defaultdict
 
-
-documentCount = 0                   # Records number of unique documents parsed through
-dev_path = "./DEV/"                 # Path to the local, UNZIPPED DEV folder
-inverted_index = defaultdict(dict)  # Complete inverted index storing (token : (document : count))
+documentCount = 0                                       # Records number of unique documents parsed through
+dev_path = "./DEV/"                                     # Path to the local, UNZIPPED DEV folder
+output_dir = "./tmp/"                                   # Where all files to disk will be saved
+inverted_index = defaultdict(lambda: defaultdict(int))  # Complete inverted index storing (token : (document : count))
+batch_size = 1000                                       # Maximum number of iterated-through *.json file before we save to disk
 
 stop_words = ['a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an',
     'and', 'any', 'are', 'as', 'at', 'be', 'because', 'been', 'before',
@@ -82,6 +78,107 @@ stop_words = ['a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', '
     'when', 'where', 'which', 'while', 'who', 'whom', 'why', 'will', 'with',
     'you', 'your', 'yours', 'yourself', 'yourselves']
     
+
+def save_partial_inverted_index(inverted_index, filename):
+    # INPUT: an inverted index and a desired filename
+    # OUTPUT: inverted index saved onto disk
+
+    os.makedirs(os.path.dirname(filename), exist_ok = True)     # Make directory if does not exist
+    tmp = dict(inverted_index)                                  # json.dump doesn't work well with defaultdict
+
+    with open(filename, "w") as file:
+        json.dump(tmp, file)
+
+
+def load_partial_inverted_index(filename):
+    # INPUT: an inverted index's filename on disk
+    # OUTPUT: inverted index loaded into memory
+
+    with open(filename, "r") as file:
+        return json.load(file)
+    
+
+def merge_partial_inverted_index_with_frequency_map(inverted_index, freq_map, doc_name):
+    # INPUT: 
+    #   - inverted_index: a created inverted_index (token : (doc_name : count))
+    #   - freq_map: a frequency_map of (token : count)
+    #   - doc_name: the unique document name to increase in inverted_index
+    # OUTPUT: freq_map included in inverted_index
+
+    for token, count in freq_map.items():       
+        inverted_index[token][doc_name] += count
+    return inverted_index
+
+
+def merge_partial_indexes(output_dir, filename_format, num_partial_indexes):
+    # INPUT:
+    #   - output_dir: a path to save the combined index
+    #   - filename_format: adds the 0,1,2,... to the end of the saved index
+    #   - num_partial_indexes: number of created partial indexes we need to combine
+    # OUTPUT: a final inverted index
+
+    final_index = defaultdict(lambda: defaultdict(int))
+
+    # Iterate through all partial indexes
+    for i in range(num_partial_indexes):
+        partial_filename = os.path.join(output_dir, filename_format.format(batch_id=i))
+        partial_index =  load_partial_inverted_index(partial_filename)
+
+        # Iterate through each partial index to add to final_index
+        for token, doc_map in partial_index.items():    # For each partial index (token : (doc_id : count)), where doc_map = (doc_id : count) 
+            for doc_id, count in doc_map.items():       # For each (doc_id : count) item
+                final_index[token][doc_id] += count     # Add to final index (token : (doc_id : count += count))
+
+    # Save to disk
+    save_partial_inverted_index(final_index, os.path.join(output_dir, "final_inverted_index.json"))
+    print("Final inverted index saved.")
+
+
+def process_files(dev_path, output_dir):
+    # INPUT:
+    #   - dev_path: a path to the /DEV/ folder with all the .json files
+    #   - output_dir: where to store inverted indexes on disk
+    # OUTPUT: a complete inverted index storing (token : (document : count))
+
+    count = 0                                                       # Number of processed .json files so far
+    partial_index_counter = 0                                       # Number of PIIs on disk
+    partial_index_filename_format = "partial_index_{batch_id}.json" # Format of each PII on disk
+    global inverted_index                                           
+    global documentCount
+
+    # Iterate through each subfolder in the ./DEV/ directory
+    for subdirectory in os.listdir(dev_path):
+        subdirectory_path = Path(dev_path) / subdirectory   # Converts the relative path to each subfolder to an absolute path
+        json_files = subdirectory_path.rglob("*.json")      # Creates a list of .json files within the subfolder
+
+        # Iterate through each .json file in each subfolder
+        for json_file in json_files:
+
+            # If we have <count> partial indexes in memory, save to disk
+            if count % batch_size == 0 and count > 0:
+                partial_index_filename = os.path.join(output_dir, partial_index_filename_format.format(batch_id=partial_index_counter))     # Format for each PII on disk: ./tmp/partial_index_<0, 1, 2, ...>.json
+                save_partial_inverted_index(inverted_index, partial_index_filename)                                                         # Save PII to disk
+                partial_index_counter += 1                                                                                              
+                inverted_index = defaultdict(lambda: defaultdict(int))                                                                      # Create a new PII in memory to merge freq_maps into
+                print(f"Saving result to disk under name: {partial_index_filename}.")
+
+            # Open .json file for extracting
+            with json_file.open("r") as file:
+                freq_map = parser(file)                                                                                                     # Create a parser to extract the .json file 
+                inverted_index = merge_partial_inverted_index_with_frequency_map(inverted_index, freq_map, json_file.name)                  # Merge each freq_map to the PII
+                documentCount += 1
+            
+            count += 1
+    
+    # Saves the final partial PPI (not a typo) to disk
+    if inverted_index:
+        partial_index_filename = os.path.join(output_dir, partial_index_filename_format.format(batch_id=partial_index_counter))
+        save_partial_inverted_index(inverted_index, partial_index_filename)
+    
+    # After all .json files parsed and PIIs created, merge all PIIs together as a single inverted index
+    print("Partial inverted indexes saved. Now merging...")
+    merge_partial_indexes(output_dir, partial_index_filename_format, partial_index_counter)
+
 
 def parser(file):
     # INPUT: a JSON file
@@ -102,6 +199,7 @@ def parser(file):
 
     try:
         # Check for valid HTML?
+        # IMPLEMENTATION HERE
 
         # Initialize HTML parser
         soup = BeautifulSoup(content, "html.parser")
@@ -133,6 +231,7 @@ def parser(file):
 
     except Exception as e:
         print(f"An error has occurred while extracting info: {e}")
+        return {}
 
     try: 
         # Create token frequency map, increase weights if necessary
@@ -155,7 +254,7 @@ def parser(file):
             if word not in stop_words:
                 frequency_map[word] += 10
 
-        print(f"URL: {url}\nTITLE: {soup.title.string.strip()}\nFrequency map: {frequency_map}\n")
+        print(f".json name: {file.name}\nURL: {url}\nTITLE: {soup.title.string.strip()}\n")
         return frequency_map
     
     except Exception as e:
@@ -163,37 +262,10 @@ def parser(file):
         return {}
 
 
-def merge(map1, map2, json1, json2):
-    # INPUT: two frequency maps represented by sets (token : count)
-    # OUTPUT: a singular frequency map merged alphabetically from map1 and map2
-    # NOTE: I'm going to use the name of the *.json file to uniquely identify documents 
-
-    pass
-
-
-def print_report():
-    # INPUT: none
-    # OUTPUT: prints documentCount, tokenCount, indexFileSize
-
-    pass 
-
-
 if __name__ == "__main__":
+    process_files(dev_path, output_dir)
 
-    # Retrieves subfolders under ./DEV/ (i.e. "aiclub_ics_uci_edu", "alderis_ics_uci_edu", etc.)
-    list_of_subdirectories = os.listdir(dev_path)
-
-    # Iterates through each subfolder           
-    for subdirectory in list_of_subdirectories:
-
-        # Changes relative path to absolute path
-        subdirectory_path = Path(dev_path) / subdirectory       
-
-        # Iterates through each .json file in each subfolder
-        for json_file in subdirectory_path.rglob("*.json"):
-            
-            document_name = json_file.name
-            with json_file.open("r") as file:
-
-                # Parse through each .json file 
-                parser(file)
+    # Results
+    print(f"Number of documents indexed through: {documentCount}")
+    print(f"Number of unique tokens: {len(inverted_index)}")
+    print(f"Size of the inverted index on disk: {os.path.getsize(inverted_index)}")
