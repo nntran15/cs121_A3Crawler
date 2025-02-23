@@ -51,6 +51,7 @@
 import os
 import json
 import pickle
+import chardet #dont forget to install
 from pathlib import Path
 from nltk.tokenize import word_tokenize # type: ignore
 from nltk.stem import PorterStemmer     # type: ignore 
@@ -180,6 +181,15 @@ def process_files(dev_path, output_dir):
     print("Partial inverted indexes saved. Now merging...")
     merge_partial_indexes(output_dir, partial_index_filename_format, partial_index_counter)
 
+# validating in either utf-8 or ASCII
+def validate_json_encoding(encoding):
+    if encoding in ["utf-8", "ascii"]:
+        print(f"Valid encoding: {encoding}")
+        return True
+    else:
+        print(f"JSON file does not have valid encoding. Found: {encoding}")
+        return False
+        
 
 def parser(file):
     # INPUT: a JSON file
@@ -196,6 +206,10 @@ def parser(file):
 
     # Skip empty content
     if not content:
+        return {}
+    
+    # Read if encoding is a valid file we can parse through
+    if not validate_json_encoding(encoding):
         return {}
 
     try:
