@@ -161,6 +161,7 @@ def process_files(dev_path, output_dir):
     if inverted_index:
         partial_index_filename = os.path.join(output_dir, partial_index_filename_format.format(batch_id=partial_index_counter))
         save_partial_inverted_index(inverted_index, partial_index_filename)
+        partial_index_counter += 1
     
     # After all .json files parsed and PIIs created, merge all PIIs together as a single inverted index
     print("All partially inverted indexes saved. Now merging...")
@@ -170,10 +171,10 @@ def process_files(dev_path, output_dir):
 # validating in either utf-8 or ASCII
 def validate_json_encoding(encoding):
     if encoding in ["utf-8", "ascii"]:
-        print(f"Valid encoding: {encoding}")
+        # print(f"Valid encoding: {encoding}")
         return True
     else:
-        print(f"JSON file does not have valid encoding. Found: {encoding}")
+        # print(f"JSON file does not have valid encoding. Found: {encoding}")
         return False
         
 
