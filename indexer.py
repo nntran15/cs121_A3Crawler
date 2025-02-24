@@ -168,10 +168,10 @@ def process_files(dev_path, output_dir):
 # validating in either utf-8 or ASCII
 def validate_json_encoding(encoding):
     if encoding in ["utf-8", "ascii"]:
-        print(f"Valid encoding: {encoding}")
+        # print(f"Valid encoding: {encoding}")
         return True
     else:
-        print(f"JSON file does not have valid encoding. Found: {encoding}")
+        # print(f"JSON file does not have valid encoding. Found: {encoding}")
         return False
         
 
@@ -193,8 +193,8 @@ def parser(file):
         return {}
     
     # Read if encoding is a valid file we can parse through
-    if not validate_json_encoding(encoding):
-        return {}
+    # if not validate_json_encoding(encoding):
+    #     return {}
 
     try:
         # Check for valid HTML?
@@ -252,7 +252,7 @@ def parser(file):
         for word in title_texts: 
             frequency_map[word] += 10
 
-        print(f".json name: {file.name}\nURL: {url}\nTITLE: {soup.title.string.strip()}\n")
+        # print(f".json name: {file.name}\nURL: {url}\nTITLE: {soup.title.string.strip()}\n")
         return frequency_map
     
     except Exception as e:
