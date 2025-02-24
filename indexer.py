@@ -63,22 +63,6 @@ dev_path = "./DEV/"                                     # Path to the local, UNZ
 output_dir = "./tmp/"                                   # Where all files to disk will be saved
 final_index = defaultdict(lambda: defaultdict(int))     # Complete inverted index storing (token : (document : count))
 batch_size = 1000                                       # Maximum number of iterated-through *.json file before we save to disk
-
-stop_words = ['a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an',
-    'and', 'any', 'are', 'as', 'at', 'be', 'because', 'been', 'before',
-    'being', 'below', 'between', 'both', 'but', 'by', 'could', 'did', 'do',
-    'does', 'doing', 'down', 'during', 'each', 'few', 'for', 'from',
-    'further', 'had', 'has', 'have', 'having', 'he', 'her', 'here', 'hers',
-    'herself', 'him', 'himself', 'his', 'how', 'i', 'if', 'in', 'into',
-    'is', 'it', "it's", 'its', 'itself', 'just', 'me', 'more', 'most',
-    'my', 'myself', 'no', 'nor', 'not', 'of', 'off', 'on', 'once', 'only',
-    'or', 'other', 'our', 'ours', 'ourselves', 'out', 'over', 'own', 's',
-    'same', 'she', "she's", 'should', 'so', 'some', 'such', 't', 'than',
-    'that', "that's", 'the', 'their', 'theirs', 'them', 'themselves',
-    'then', 'there', 'these', 'they', 'this', 'those', 'through', 'to',
-    'too', 'under', 'until', 'up', 'very', 'was', 'we', 'were', 'what',
-    'when', 'where', 'which', 'while', 'who', 'whom', 'why', 'will', 'with',
-    'you', 'your', 'yours', 'yourself', 'yourselves']
     
 
 def save_partial_inverted_index(inverted_index, filename):
@@ -260,16 +244,13 @@ def parser(file):
             frequency_map[word] += 1
 
         for word in bold_texts:
-            if word not in stop_words:
-                frequency_map[word] += 3
+            frequency_map[word] += 3
 
         for word in header_texts:   
-            if word not in stop_words:
-                frequency_map[word] += 5
+            frequency_map[word] += 5
         
         for word in title_texts: 
-            if word not in stop_words:
-                frequency_map[word] += 10
+            frequency_map[word] += 10
 
         print(f".json name: {file.name}\nURL: {url}\nTITLE: {soup.title.string.strip()}\n")
         return frequency_map
