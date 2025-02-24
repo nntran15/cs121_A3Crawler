@@ -64,7 +64,6 @@ output_dir = "./tmp/"                                   # Where all files to dis
 final_index = defaultdict(lambda: defaultdict(int))     # Complete inverted index storing (token : (document : count))
 batch_size = 1000                                       # Maximum number of iterated-through *.json file before we save to disk
     
-
 def save_partial_inverted_index(inverted_index, filename):
     # INPUT: an inverted index and a desired filename
     # OUTPUT: inverted index saved onto disk
@@ -160,6 +159,7 @@ def process_files(dev_path, output_dir):
     if inverted_index:
         partial_index_filename = os.path.join(output_dir, partial_index_filename_format.format(batch_id=partial_index_counter))
         save_partial_inverted_index(inverted_index, partial_index_filename)
+        partial_index_counter += 1
     
     # After all .json files parsed and PIIs created, merge all PIIs together as a single inverted index
     print("Partial inverted indexes saved. Now merging...")
