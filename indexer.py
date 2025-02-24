@@ -51,7 +51,6 @@
 import os
 import json
 import pickle
-import chardet #dont forget to install
 from pathlib import Path
 from nltk.tokenize import word_tokenize # type: ignore
 from nltk.stem import PorterStemmer     # type: ignore 
@@ -60,7 +59,8 @@ from collections import defaultdict
 
 documentCount = 0                                       # Records number of unique documents parsed through
 dev_path = "./DEV/"                                     # Path to the local, UNZIPPED DEV folder
-output_dir = "./tmp/"                                   # Where all files to disk will be saved
+output_dir = "./tmp/"                                   # Where all partial indexes to disk will be saved
+final_dir = "./index/"                                  # Where completed indexes to disk will be saved
 final_index = defaultdict(lambda: defaultdict(int))     # Complete inverted index storing (token : (document : count))
 batch_size = 1000                                       # Maximum number of iterated-through *.json file before we save to disk
     
@@ -96,9 +96,9 @@ def merge_partial_inverted_index_with_frequency_map(inverted_index, freq_map, do
     return inverted_index
 
 
-def merge_partial_indexes(output_dir, filename_format, num_partial_indexes):
+def merge_partial_indexes(final_dir, filename_format, num_partial_indexes):
     # INPUT:
-    #   - output_dir: a path to save the combined index
+    #   - final_dir: a path to save the combined index
     #   - filename_format: adds the 0,1,2,... to the end of the saved index
     #   - num_partial_indexes: number of created partial indexes we need to combine
     # OUTPUT: a final inverted index
@@ -107,7 +107,7 @@ def merge_partial_indexes(output_dir, filename_format, num_partial_indexes):
 
     # Iterate through all partial indexes
     for i in range(num_partial_indexes):
-        partial_filename = os.path.join(output_dir, filename_format.format(batch_id=i))
+        partial_filename = os.path.join(final_dir, filename_format.format(batch_id=i))
         partial_index =  load_partial_inverted_index(partial_filename)
 
         # Iterate through each partial index to add to final_index
@@ -116,7 +116,7 @@ def merge_partial_indexes(output_dir, filename_format, num_partial_indexes):
                 final_index[token][doc_id] += count     # Add to final index (token : (doc_id : count += count))
 
     # Save to disk
-    save_partial_inverted_index(final_index, os.path.join(output_dir, "final_inverted_index.pkl"))
+    save_partial_inverted_index(final_index, os.path.join(final_dir, "final_inverted_index.pkl"))
     print("Final inverted index saved.")
 
 
@@ -131,6 +131,7 @@ def process_files(dev_path, output_dir):
     partial_index_filename_format = "partial_index_{batch_id}.pkl"  # Format of each PII on disk
     inverted_index = defaultdict(lambda: defaultdict(int))                                      
     global documentCount
+    global final_dir
 
     # Iterate through each subfolder in the ./DEV/ directory
     for subdirectory in os.listdir(dev_path):
@@ -143,10 +144,10 @@ def process_files(dev_path, output_dir):
             # If we have <count> partial indexes in memory, save to disk
             if count % batch_size == 0 and count > 0:
                 partial_index_filename = os.path.join(output_dir, partial_index_filename_format.format(batch_id=partial_index_counter))     # Format for each PII on disk: ./tmp/partial_index_<0, 1, 2, ...>.json
+                print(f"Saving result to disk under name: {partial_index_filename}.")
                 save_partial_inverted_index(inverted_index, partial_index_filename)                                                         # Save PII to disk
                 partial_index_counter += 1                                                                                              
                 inverted_index = defaultdict(lambda: defaultdict(int))                                                                      # Create a new PII in memory to merge freq_maps into
-                print(f"Saving result to disk under name: {partial_index_filename}.")
 
             # Open .json file for extracting
             with json_file.open("r") as file:
@@ -162,8 +163,9 @@ def process_files(dev_path, output_dir):
         save_partial_inverted_index(inverted_index, partial_index_filename)
     
     # After all .json files parsed and PIIs created, merge all PIIs together as a single inverted index
-    print("Partial inverted indexes saved. Now merging...")
-    merge_partial_indexes(output_dir, partial_index_filename_format, partial_index_counter)
+    print("All partially inverted indexes saved. Now merging...")
+    merge_partial_indexes(final_dir, partial_index_filename_format, partial_index_counter)
+
 
 # validating in either utf-8 or ASCII
 def validate_json_encoding(encoding):
@@ -184,22 +186,18 @@ def parser(file):
     # Extract information from .json file
     # NOTE: we use ".get()" since *.json content follows a dictionary format 
     # NOTE: invalid or missing responses return None
-    url = data.get("url")
     content = data.get("content")
-    encoding = data.get("encoding")     # NOTE: Cannot assume ascii/utf-8! Got some EUC-KR, Windows-1252, ISO-8859-1...
+    url = data.get("url")
+
+    number_tokens_before_stemming = 0
+    number_tokens_after_stemming = 0
 
     # Skip empty content
     if not content:
+        print(f"Empty content detected at {file.name}. Skipping.")
         return {}
     
-    # Read if encoding is a valid file we can parse through
-    if not validate_json_encoding(encoding):
-        return {}
-
     try:
-        # Check for valid HTML?
-        # IMPLEMENTATION HERE
-
         # Initialize HTML parser
         soup = BeautifulSoup(content, "html.parser")
         page_text = soup.get_text()
@@ -207,11 +205,12 @@ def parser(file):
         # Extract tokens
         tokens = word_tokenize(page_text)
         tokens = [word for word in tokens if word.isalnum()]
+        number_tokens_before_stemming = len(set(tokens))
 
         # Extract stems
         stemmer = PorterStemmer()
         stems = [stemmer.stem(word) for word in tokens]
-        stems = sorted(stems)
+        number_tokens_after_stemming = len(set(stems))
 
         # Extract bolded text
         bold_texts = [bolded.get_text(strip = True) for bolded in soup.find_all(["b", "strong"])]
@@ -236,8 +235,6 @@ def parser(file):
 
     try: 
         # Create token frequency map, increase weights if necessary
-        # NOTE: I'm excluding stopwords in bolded, header, and title words when increasing frequency
-
         frequency_map = defaultdict(int)
 
         for word in stems:
@@ -253,12 +250,45 @@ def parser(file):
             frequency_map[word] += 10
 
         print(f".json name: {file.name}\nURL: {url}\nTITLE: {soup.title.string.strip()}\n")
+        print(f"Found {number_tokens_before_stemming} of tokens before stemming, and {number_tokens_after_stemming} of tokens after stemming.")
+    
         return frequency_map
     
     except Exception as e:
         print(f"An error has occurred while creating frequency_map: {e}")
         return {}
 
+
+def split_final_index_alphabetically(final_index, output_dir):
+    # INPUT: final inverted index dictionary object
+    # OUTPUT: the final inverted index split alphabetically
+    # Ex.   final_index = {
+    #           "ant": {"doc1.json": 2, "doc2.json": 1}, 
+    #           "both": {"doc1.json": 2}, 
+    #           "cat": {"doc3.json": 4},
+    #           "cactus:" {"doc1.json": 2}
+    #       }
+    #       split_index = {
+    #           "A": {"ant": {"doc1.json": 2, "doc2.json": 1}},
+    #           "B": {"both": {"doc1.json": 2}},
+    #           "C": {"cat": {"doc3.json": 4}, "cactus": {"doc1.json": 2}}
+    #       }
+    # NOTE: sorry  
+
+    split_final = defaultdict(dict)
+
+    # Iterate through final index where token = "ant", doc_map = {"doc1.json": 2, "doc2.json": 1}
+    for token, doc_map in final_index.items():
+        first_letter = token[0].upper()
+        split_final = [first_letter][token] = doc_map
+    
+    # Save each term to a separate file so we don't have to load everything into memory
+    for letter, terms in split_final():
+        filename = os.path.join(output_dir, f"terms_{letter}.pkl")
+        save_partial_inverted_index(terms, filename)
+    
+    print("Final index successfully split alphabetically.")
+    
 
 if __name__ == "__main__":
     process_files(dev_path, output_dir)
