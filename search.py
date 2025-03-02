@@ -108,5 +108,36 @@ def run_search_interface():
             print(f"{i}. {doc_url} (Score: {score})")
 
 
+def boolean_query(query, final_dir):
+    query_tokens = tokenize_query(query)
+
+    #No query tokens return empty
+    if not query_tokens:
+        return []
+
+    partial_index = load_alphabetical_index(final_dir, query_tokens)
+
+    #If the tokens in the partial aren't in the query return
+    if not all(token in partial_index for token in query_tokens):
+        return []
+
+    common = None
+
+    #Loop through the query tokens, set the document to whatever our key is
+    for token in query_tokens:
+        doc_set = set(partial_index[token].keys())
+        #if there is no common, set it to current set
+        if common is None:
+            common = doc_set
+        #otherwise add it to our common
+        else:
+            common &= doc_set
+        #if there is no common return an empty list
+        if not common:
+            return []
+
+    return list(common)
+
+
 if __name__ == "__main__":
     run_search_interface()
