@@ -117,23 +117,24 @@ def boolean_query(query, final_dir):
 
     partial_index = load_alphabetical_index(final_dir, query_tokens)
 
-    #If the tokens in the partial aren't in the query return
-    if not all(token in partial_index for token in query_tokens):
+    #If the tokens in the partial aren't in the partial index return
+    valid_tokens = [token for token in query_tokens if token in partial_index]
+
+    if not valid_tokens:
         return []
 
-    common = None
+    #Sorting smallest first
+    valid_tokens.sort(key=lambda token: len(partial_index[token]))
 
+    #Setting the document set to our first query valid token
+    doc_set = set(partial_index[valid_tokens[0]].keys())
+    
     #Loop through the query tokens, set the document to whatever our key is
     for token in query_tokens:
-        doc_set = set(partial_index[token].keys())
-        #if there is no common, set it to current set
-        if common is None:
-            common = doc_set
-        #otherwise add it to our common
-        else:
-            common &= doc_set
+        doc_set &= set(partial_index[token].keys())
+
         #if there is no common return an empty list
-        if not common:
+        if not doc_set:
             return []
 
     return list(common)
