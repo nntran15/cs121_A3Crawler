@@ -151,8 +151,11 @@ def process_files(dev_path, output_dir, final_dir):
 
             # Open .json file for extracting
             with json_file.open("r") as file:
-                freq_map = parser(file)                                                                                                     # Create a parser to extract the .json file 
-                inverted_index = merge_partial_inverted_index_with_frequency_map(inverted_index, freq_map, json_file.name)                  # Merge each freq_map to the PII
+                data = json.load(file)
+                url = data.get("url")
+                content = data.get("content")
+                freq_map = parser(content)                                                                                                     # Create a parser to extract the .json file 
+                inverted_index = merge_partial_inverted_index_with_frequency_map(inverted_index, freq_map, url)                             # Merge each freq_map to the PII
                 documentCount += 1
             
             count += 1
@@ -168,24 +171,15 @@ def process_files(dev_path, output_dir, final_dir):
     merge_partial_indexes(output_dir, final_dir, partial_index_filename_format, partial_index_counter)
         
 
-def parser(file):
+def parser(content):
     # INPUT: a JSON file
     # OUTPUT: a partial inverted index represented by a set (token : count)
-
-    data = json.load(file)
-                    
-    # Extract information from .json file
-    # NOTE: we use ".get()" since *.json content follows a dictionary format 
-    # NOTE: invalid or missing responses return None
-    content = data.get("content")
-    url = data.get("url")
 
     number_tokens_before_stemming = 0
     number_tokens_after_stemming = 0
 
     # Skip empty content
     if not content:
-        print(f"Empty content detected at {file.name}. Skipping.")
         return {}
     
     try:
@@ -240,7 +234,6 @@ def parser(file):
         for word in title_texts: 
             frequency_map[word] += 10
 
-        print(f".json name: {file.name}\nURL: {url}\n")
         print(f"Found {number_tokens_before_stemming} of tokens before stemming, and {number_tokens_after_stemming} of tokens after stemming.")
     
         return frequency_map
