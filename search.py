@@ -121,9 +121,11 @@ def boolean_query(query, final_dir):
     tokenized_terms = [tokenize_query(term, True) for term in query_parts]
 
     # Filter empty terms lists since previous method may create empty lists from filtering stopwords
+    # tokenized_terms may be [["computer", "science"], [], ["AI"]], so we delete the empty middle list
     tokenized_terms = [terms for terms in tokenized_terms if terms]
 
     # Condense list of lists into a single list
+    # tokenized_terms = [["computer", "science"], ["AI"]] -> all_query_tokens = ["computer", "science", "AI"]
     all_query_tokens = [token for terms_tokens in tokenized_terms for token in terms_tokens]
 
     # Empty query
@@ -131,20 +133,25 @@ def boolean_query(query, final_dir):
         return []
 
     # Load associated alphabetical indexes
+    # all_query_tokens = ["computer", "science", "AI"] -> ./index/terms_C.pkl, ./index/terms_S.pkl, ./index/terms_A.pkl
     partial_index = load_alphabetical_index(final_dir, all_query_tokens)
 
-    # Goes through each document looking for tokenized_terms
     documents_with_terms = []
+
+    # Goes through each document looking for tokenized_terms
+    # Does ./index/terms_C.pkl actually contain "computer"?
     for term_tokens in tokenized_terms:
-        # Filter valid tokens that exist in partial index
+        
+        # Filter valid tokens that actually exist in partial index
+        # valid_tokens contains ["computer", "science"] if terms_C.pkl, terms_S.pkl actually "computer" and "science", but terms_A.pkl does not contain "AI"
         valid_tokens = [token for token in term_tokens if token in partial_index]
 
-        # No terms in partial index
+        # No terms in partial index-- no documents associated with tokens that user wants
         if not valid_tokens:
             return []
         
         # Retrieves documents for each token in valid_tokens
-        doc_set = set()
+        doc_set = set() # Stores all documents containing "computer" and "science", for example
         for token in valid_tokens:
             if not doc_set:
                 # Adds to list
