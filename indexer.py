@@ -273,8 +273,6 @@ def split_final_index_alphabetically(final_index, final_dir):
     
     print("Final index successfully split alphabetically.")
     
-def getQuery():
-    query = input("Enter your query: ")
 
 if __name__ == "__main__":
     process_files(dev_path, output_dir, final_dir)

@@ -1,4 +1,5 @@
 import os
+import time
 import pickle
 from nltk.tokenize import word_tokenize # type: ignore
 from nltk.stem import PorterStemmer     # type: ignore
@@ -51,7 +52,7 @@ def search(query, final_dir):
     # OUTPUT: top url_count links associated with the user query
 
     global url_count
-
+    
     # Tokenize and stem the query
     query_tokens = tokenize_query(query)
 
@@ -89,6 +90,8 @@ def run_search_interface():
     print("\nNote: Enter 'exit' to quit program.")
     while True:
         query = input("\nEnter your search query: ")
+        # Start a timer to measure how long it would take to query our results
+        time_start = time.perf_counter()
 
         # Exit program
         if query.lower() == "exit":
@@ -96,24 +99,43 @@ def run_search_interface():
             break
 
         results = search(query, final_dir)
+        bool_query = boolean_query(query, final_dir) # gets a boolean query between query indicies
+        bq_timer_end = time.perf_counter() # ending timestamp for boolean search query
 
+        #End the timer
+        time_end = time.perf_counter()
+        elapsed_time = (time_end - time_start) * 1000 # calculates our query time in ms
+        bq_elapsed = (bq_timer_end - bq_timer_start) * 1000 # calculates boolean query search time in ms
+        
         # No results found
         if not results:
             print("No results found for your query.")
+            print(f"Querying took {elapsed_time:.3f} ms")
             continue
-
+        
         # Print results
         print(f"Showing top 5 results...")
         for i, (doc_url, score) in enumerate(results, 1):
             print(f"{i}. {doc_url} (Score: {score})")
+        print(f"Querying took {elapsed_time:.3f} ms")
+        
+        # print("Boolean query exists within these documents: ")
+        # (i actually have no idea how this will be printed)
+        # for doc in bool_query:
+        #     print(doc, end=" ")
+        # print(f"Boolean querying took {bq_elapsed:.3f} ms")
 
 
 def boolean_query(query, final_dir):
+    global bq_timer_start
+    
     query_tokens = tokenize_query(query)
 
     #No query tokens return empty
     if not query_tokens:
         return []
+    
+    bq_timer_start = time.perf_counter()
 
     partial_index = load_alphabetical_index(final_dir, query_tokens)
 
@@ -137,7 +159,7 @@ def boolean_query(query, final_dir):
         if not doc_set:
             return []
 
-    return list(common)
+    return list(doc_set)
 
 
 if __name__ == "__main__":
