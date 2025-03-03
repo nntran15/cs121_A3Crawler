@@ -11,6 +11,7 @@ url_count = 5
 final_dir = "./index/"
 
 
+
 def tokenize_query(query):
     # INPUT: user query
     # OUTPUT: tokenized user query
@@ -95,7 +96,7 @@ def run_search_interface():
             print("Exiting search.")
             break
 
-        results = search(query, final_dir)
+        results = boolean_query(query, final_dir)
 
         # No results found
         if not results:
@@ -111,33 +112,45 @@ def run_search_interface():
 def boolean_query(query, final_dir):
     query_tokens = tokenize_query(query)
 
-    #No query tokens return empty
+    # No query tokens return empty
     if not query_tokens:
         return []
 
     partial_index = load_alphabetical_index(final_dir, query_tokens)
 
-    #If the tokens in the partial aren't in the partial index return
+    # Filter valid tokens that exist in partial index
     valid_tokens = [token for token in query_tokens if token in partial_index]
 
     if not valid_tokens:
         return []
 
-    #Sorting smallest first
+    # Sorting smallest first (to optimize intersection)
     valid_tokens.sort(key=lambda token: len(partial_index[token]))
 
-    #Setting the document set to our first query valid token
+    # Initialize doc_set with the first token's document set
     doc_set = set(partial_index[valid_tokens[0]].keys())
-    
-    #Loop through the query tokens, set the document to whatever our key is
-    for token in query_tokens:
+
+    # Perform intersection for all valid tokens
+    for token in valid_tokens[1:]:  # Start from the second token
         doc_set &= set(partial_index[token].keys())
 
-        #if there is no common return an empty list
+        # If intersection is empty, return early
         if not doc_set:
             return []
 
-    return list(doc_set)
+    # Track document scores (only for docs in doc_set)
+    document_scores = Counter()
+
+    for token in valid_tokens:
+        for doc_url, count in partial_index[token].items():
+            if doc_url in doc_set:  # Ensure only intersected docs are scored
+                document_scores[doc_url] += count
+
+    # Get top 5 documents with highest scores
+    top_docs = heapq.nlargest(5, document_scores.items(), key=lambda x: x[1])
+
+    return [doc for doc, _ in top_docs]  # Return only document URLs
+
 
 
 if __name__ == "__main__":
