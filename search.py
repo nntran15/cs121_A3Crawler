@@ -137,7 +137,7 @@ def boolean_query(query, final_dir):
         if not doc_set:
             return []
 
-    return list(common)
+    return list(doc_set)
 
 
 if __name__ == "__main__":
