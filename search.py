@@ -100,7 +100,7 @@ def run_search_interface():
             break
 
         results = search(query, final_dir)
-        results = boolean_query(query, final_dir) # gets a boolean query between query indicies
+        boolean_results = boolean_query(query, final_dir) # gets a boolean query between query indicies
         bq_timer_end = time.perf_counter() # ending timestamp for boolean search query
 
         #End the timer
@@ -118,14 +118,13 @@ def run_search_interface():
         print(f"Showing top 5 results...")
         for i, (doc_url, score) in enumerate(results, 1):
             print(f"{i}. {doc_url} (Score: {score})")
-        print(f"Querying took {elapsed_time:.3f} ms")
+        print(f"Querying took {elapsed_time:.3f} ms\n")
         
-        # (i actually have no idea how this will be printed)
-        
-        # print("Boolean query exists within these documents: ")
-        # for doc in bool_query:
-        #     print(doc, end=" ")
-        # print(f"Boolean querying took {bq_elapsed:.3f} ms")
+        # Printing boolean results for boolean query
+        print("Boolean query exists within these documents: ")
+        for doc in boolean_results:
+            print(doc)
+        print(f"Boolean querying took {bq_elapsed:.3f} ms")
 
 
 def boolean_query(query, final_dir):
