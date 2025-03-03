@@ -119,8 +119,9 @@ def run_search_interface():
             print(f"{i}. {doc_url} (Score: {score})")
         print(f"Querying took {elapsed_time:.3f} ms")
         
-        # print("Boolean query exists within these documents: ")
         # (i actually have no idea how this will be printed)
+        
+        # print("Boolean query exists within these documents: ")
         # for doc in bool_query:
         #     print(doc, end=" ")
         # print(f"Boolean querying took {bq_elapsed:.3f} ms")
