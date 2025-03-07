@@ -6,3 +6,6 @@ ANALYST
 tmp
 index
 env
+
+node_modules
+__pycache__

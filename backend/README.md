@@ -1,0 +1,1 @@
+Please download the "developer.zip" file from the Assignment 3 page and unzip it at the root of the directory. We hard coded the location of resulting /DEV/ folder for our parser to go through. Thank you, and sorry for the inconvenience (the zip file was too large)!
