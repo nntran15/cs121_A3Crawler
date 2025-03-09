@@ -5,6 +5,7 @@ from nltk.tokenize import word_tokenize # type: ignore
 from nltk.stem import PorterStemmer     # type: ignore
 from collections import Counter
 import heapq
+import math
 
 # CHANGE THIS VARIABLE TO SHOWCASE HOW MANY URLS ARE DISPLAYED
 url_count = 5
@@ -94,19 +95,22 @@ def search(query, final_dir):
     # Load the partial index associated with the user query
     partial_index = load_alphabetical_index(final_dir, query_tokens)
 
-    # Track document scores
+    # Track tf-idf scores
     document_scores = Counter()
+    N = len(partial_index)
 
     # For each token in the query
     for token in query_tokens:
         if token in partial_index:
-            # Retrieve documents containing token
+            # Calculate 
             doc_map = partial_index[token]
-
-            # Update scores for each document
+            dft = len(doc_map)
             for doc_url, count in doc_map.items():
-                document_scores[doc_url] += count
-            
+                tftd = count
+                wtd = (1+math.log(tftd) * math.log(N/dft))
+                document_scores[doc_url] += wtd
+                wtd = 0
+
     # Get top 5 documents with highest scores
     top_docs = heapq.nlargest(5, document_scores.items(), key=lambda x: x[1])
 
@@ -224,7 +228,7 @@ def run_search_interface():
         # Print results
         print(f"Showing top 5 results...")
         for i, (doc_url, score) in enumerate(results, 1):
-            print(f"{i}. {doc_url} (Score: {score})")
+            print(f"{i}. {doc_url} (TF-IDF score: {score:.3f})")
         print(f"Querying took {elapsed_time:.3f} ms\n")
 
 
