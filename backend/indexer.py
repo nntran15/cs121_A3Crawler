@@ -59,9 +59,9 @@ from bs4 import BeautifulSoup
 from collections import defaultdict
 
 documentCount = 0                                       # Records number of unique documents parsed through
-dev_path = "./ANALYST/"                                 # Path to the local, UNZIPPED DEV folder
+dev_path = "./DEV/"                                     # Path to the local, UNZIPPED DEV folder
 output_dir = "./tmp/"                                   # Where all partial indexes to disk will be saved
-final_dir = "./test/"                                  # Where completed indexes to disk will be saved
+final_dir = "./index/"                                  # Where completed indexes to disk will be saved
 final_index = defaultdict(lambda: defaultdict(int))     # Complete inverted index storing (token : (document : count))
 batch_size = 1000                                       # Maximum number of iterated-through *.json file before we save to disk
 alphabetical_chunk_size = 500                           # Number of terms in each alphabetical terms_X.pkl file

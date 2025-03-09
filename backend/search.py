@@ -11,7 +11,7 @@ import math
 url_count = 5
 
 # CHANGE THIS TO WHERE PARTIAL ALPHABETICAL INDEXES ARE STORED
-final_dir = "./test/"
+final_dir = "./index/"
 
 
 # Stop words to be filtered
