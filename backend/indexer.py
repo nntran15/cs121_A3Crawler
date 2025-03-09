@@ -51,6 +51,7 @@
 import os
 import json
 import pickle
+import math
 from pathlib import Path
 from nltk.tokenize import word_tokenize # type: ignore
 from nltk.stem import PorterStemmer     # type: ignore 
@@ -58,12 +59,13 @@ from bs4 import BeautifulSoup
 from collections import defaultdict
 
 documentCount = 0                                       # Records number of unique documents parsed through
-dev_path = "./DEV/"                                     # Path to the local, UNZIPPED DEV folder
+dev_path = "./ANALYST/"                                 # Path to the local, UNZIPPED DEV folder
 output_dir = "./tmp/"                                   # Where all partial indexes to disk will be saved
-final_dir = "./index/"                                  # Where completed indexes to disk will be saved
+final_dir = "./test/"                                  # Where completed indexes to disk will be saved
 final_index = defaultdict(lambda: defaultdict(int))     # Complete inverted index storing (token : (document : count))
 batch_size = 1000                                       # Maximum number of iterated-through *.json file before we save to disk
-    
+alphabetical_chunk_size = 500                           # Number of terms in each alphabetical terms_X.pkl file
+
 
 def save_partial_inverted_index(inverted_index, filename):
     # INPUT: an inverted index and a desired filename
@@ -167,8 +169,9 @@ def process_files(dev_path, output_dir, final_dir):
         partial_index_counter += 1
     
     # After all .json files parsed and PIIs created, merge all PIIs together as a single inverted index
-    print("All partially inverted indexes saved. Now merging...")
+    print("\nAll partially inverted indexes saved. Now merging...")
     merge_partial_indexes(output_dir, final_dir, partial_index_filename_format, partial_index_counter)
+    write_total_documents(final_dir, documentCount)
         
 
 def parser(content):
@@ -259,7 +262,10 @@ def split_final_index_alphabetically(final_index, final_dir):
     #       }
     # NOTE: sorry  
 
+    global alphabetical_chunk_size
+
     split_final = defaultdict(dict)
+    lookup_dict = defaultdict(dict)
 
     # Iterate through final index where token = "ant", doc_map = {"doc1.json": 2, "doc2.json": 1}
     for token, doc_map in final_index.items():
@@ -268,11 +274,61 @@ def split_final_index_alphabetically(final_index, final_dir):
     
     # Save each term to a separate file so we don't have to load everything into memory
     for letter, terms in split_final.items():
-        filename = os.path.join(final_dir, f"terms_{letter}.pkl")
-        save_partial_inverted_index(terms, filename)
-    
+        # Store list of term : doc_map
+        terms_list = list(terms.items())
+        terms_list.sort(key=lambda x: x[0])
+
+        num_terms = len(terms)                                      # Number of terms in each alphabet index
+        num_chunks = math.ceil(num_terms / alphabetical_chunk_size) # Number of parts for each alphabet index
+
+        if num_chunks <= 1:
+            filename = os.path.join(final_dir, f"terms_{letter}.pkl")
+            save_partial_inverted_index(terms, filename)
+
+            # Add last term to lookup dictionary
+            if terms_list:
+                last_term = max(term for term, _ in terms_list)     # Retrieve lexographically 
+                lookup_dict[letter][last_term] = filename           # Stores last item in filename
+        else:
+            for i in range(num_chunks):
+                start_index = i * alphabetical_chunk_size
+                end_index = min((i+1) * alphabetical_chunk_size, num_terms)
+
+                # Extract the chunk of terms
+                chunk_list = terms_list[start_index : end_index]        # Partition terms_list to just be start-end
+                chunk_dict = dict(chunk_list)                           # Converts list to a dictionary for ease of access           
+
+                # Save chunk to disk
+                chunk_filename = os.path.join(final_dir, f"terms_{letter}P{i+1}.pkl")
+                save_partial_inverted_index(chunk_dict, chunk_filename)
+
+                # Add last term to lookup dictionary
+                if chunk_list:
+                    last_term = max(term for term, _ in chunk_list)
+                    lookup_dict[letter][last_term] = chunk_filename
+
+                print(f"Saved {len(chunk_dict)} terms to {chunk_filename} (chunk {i+1}/{num_chunks} for letter {letter})")
+
+    # Save lookup dictionaries
+    for letter, lookup_dict in lookup_dict.items():
+        lookup_dictionary_path = os.path.join(final_dir, f"key_{letter}.pkl")
+        save_partial_inverted_index(lookup_dict, lookup_dictionary_path)
+
     print("Final index successfully split alphabetically.")
     
+
+def write_total_documents(final_dir, documentCount):
+    # Creates a singular .pkl file that has a single number: the total documentCount
+    # For TF-IDF calculations
+    # INPUT:
+    #   final_dir: the location where partial indices are stored
+    #   documentCount: total number of documents in the corpus
+    # OUTPUT: .pkl file storing total documentCount
+
+    total_documents_directory = os.path.join(final_dir, f"total_documents.pkl")
+    with open(total_documents_directory, "wb") as file:
+        pickle.dump(documentCount, file)
+
 
 if __name__ == "__main__":
     process_files(dev_path, output_dir, final_dir)

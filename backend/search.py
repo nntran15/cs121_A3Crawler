@@ -11,7 +11,7 @@ import math
 url_count = 5
 
 # CHANGE THIS TO WHERE PARTIAL ALPHABETICAL INDEXES ARE STORED
-final_dir = "./index/"
+final_dir = "./test/"
 
 
 # Stop words to be filtered
@@ -33,7 +33,10 @@ stop_words = ['a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', '
 
 
 def tokenize_query(query, remove_stopwords):
-    # INPUT: user query
+    # Tokenizes a user's query with the 
+    # INPUT:
+    #   - query: the user's query
+    #   - remove_stopwords: boolean whether we want to remove (TRUE) or keep stopwords (FALSE)
     # OUTPUT: tokenized user query
 
     stemmer = PorterStemmer()
@@ -47,37 +50,103 @@ def tokenize_query(query, remove_stopwords):
 
     # Apply stemming
     tokens = [stemmer.stem(word) for word in tokens]
+
     return tokens
 
 
-def load_alphabetical_index(final_dir, query_tokens):
-    # Load n alphabetical indexes corresponding to the n unique first letters of user query
+def load_partial_inverted_index(filename):
+    # Load a pickle file into memory
+    # INPUT: an inverted index's filename on disk
+    # OUTPUT: inverted index loaded into memory
+
+    with open(filename, "rb") as file:
+        return pickle.load(file)
+
+
+def find_chunk_for_term(term, final_dir):
+    # Since terms.pkl files are lexographically sorted and broken into different chunk sizes (defined on indexer.py), we can avoid going through each individual .pkl file to find a term
+    # "key_{first_letter}.pkl" holds a tuple of every last term in an index along with the index name: (term : file name where the term the last term in)
+    # Function shifts through all keys.pkl and compares a searched-for term and the last term in every .pkl file
+    # Ex. term = "apple", key_A.pkl contains (aaaa : term_AP1.pkl), (aabb : term_AP2.pkl), (azzz : term_AP3.pkl). So "apple" must be in term_AP3.pkl
     # INPUT:
-    #  - final_dir: where alphabetical indexes are stored
-    #  - query_tokens: tokens from user query
-    # OUTPUT: the n alphabetical partial inverted indexes loaded into memory
+    #   - term: term we want to find the term.pkl file for
+    #   - final_dir: where alphabetical indexes are stored
+    # OUTPUT:
+    #   - returns both the term.pkl file and filename of the file
 
-    # Retrieves, as a list, the first letter of every token
-    first_letters = {token[0].upper() for token in query_tokens if token} 
+    first_letter = term[0].upper()
 
-    # Load the first_letter partial indexes
-    partial_index = {}
-    for letter in first_letters:
-        file_path = os.path.join(final_dir, f"terms_{letter}.pkl")
-        if os.path.exists(file_path):
-            with open(file_path, "rb") as file:
-                letter_index = pickle.load(file)
-                partial_index.update(letter_index)
+    # Load lookup dictionary for letter
+    lookup_file = os.path.join(final_dir, f"key_{first_letter}.pkl")
+    lookup_dict = load_partial_inverted_index(lookup_file)
 
-    return partial_index 
+    # Search for term.pkl file
+    target_file = None
+    for last_term, file in sorted(lookup_dict.items()):
+        if term <= last_term:
+            target_file = file
+            break
+    
+    # No associated term.pkl file found
+    if target_file is None:
+        return None, None
+    
+    # Load chunk file
+    chunk_data = load_partial_inverted_index(target_file)
+
+    return chunk_data, target_file
+
+
+def load_term_data(query_tokens, final_dir):
+    # Parent function for find_chunk_for_term
+    # Receives ALL user query tokens then loads each associated term.pkl file for each token
+    # INPUT:
+    #   - query_tokens: the user's query
+    #   - final_dir: where alphabetical indexes are stored
+    # OUTPUT:
+    #   - A dictionary (token : its associated term.pkl file)
+    #   - ALL term.pkl files into memory
+
+    term_data = {}      # Stores term information as a dictionary: (token : its associated term.pkl file)
+    loaded_chunks = {}  # Cache for loaded chunks of inverted indices that have already been loaded
+
+    # Iterates through query tokens
+    for token in query_tokens:
+
+        # Checks for invalid tokens
+        if not token:
+            continue
+        
+        # Checks for if token exists in already loaded chunks
+        token_found = False
+        for chunk_data in loaded_chunks.values():
+            if token in chunk_data:
+                term_data[token] = chunk_data[token]
+                token_found = True
+                break
+
+        # Found in cache
+        if token_found:
+            continue
+
+        # Not found in cache
+        chunk_data, chunk_filename = find_chunk_for_term(token, final_dir)
+
+        # Valid data found -> store in cache
+        if chunk_data and chunk_filename:
+            loaded_chunks[chunk_filename] = chunk_data
+            if token in chunk_data:
+                term_data[token] = chunk_data[token]
+        
+    return term_data
 
 
 def search(query, final_dir):
-    # Helper function to return the top url_count files 
+    # Helper function to return the top url_count files for a user query
     # INPUT:
     #  - query: user query
     #  - final_dir: where alphabetical indexes are stored
-    # OUTPUT: top url_count links associated with the user query
+    # OUTPUT: top url_count links associated with the user's query
 
     global url_count
 
@@ -93,106 +162,109 @@ def search(query, final_dir):
         return []
     
     # Load the partial index associated with the user query
-    partial_index = load_alphabetical_index(final_dir, query_tokens)
+    term_data = load_term_data(query_tokens, final_dir)
 
     # Track tf-idf scores
     document_scores = Counter()
-    N = len(partial_index)
 
-    # For each token in the query
+    N_directory = os.path.join(final_dir, f"total_documents.pkl")
+    N = load_partial_inverted_index(N_directory)
+
+    # Calculate tf-idf scores
     for token in query_tokens:
-        if token in partial_index:
-            # Calculate 
-            doc_map = partial_index[token]
+        if token in term_data:
+            doc_map = term_data[token]
             dft = len(doc_map)
-            for doc_url, count in doc_map.items():
-                tftd = count
-                wtd = (1+math.log(tftd) * math.log(N/dft))
-                document_scores[doc_url] += wtd
-                wtd = 0
+            if dft > 0:
+                for doc_url, count in doc_map.items():
+                    tftd = count
+                    wtd = (1+math.log(tftd) * math.log(N/dft))
+                    document_scores[doc_url] += wtd
 
     # Get top 5 documents with highest scores
-    top_docs = heapq.nlargest(5, document_scores.items(), key=lambda x: x[1])
+    top_docs = heapq.nlargest(url_count, document_scores.items(), key=lambda x: x[1])
 
     return top_docs
 
 
 def boolean_query(query, final_dir):
+    # Helper function to return documents that contain ALL terms of a user's query
+    # INPUT: 
+    #  - query: user query
+    #  - final_dir: where alphabetical indexes are stored
+    # OUTPUT:
+    #  - top url_count links associated with ALL parts of a user's query
 
-    # Splits user query into parts
-    # Ex. query = "computer science AND AI" -> tokenized_terms = [["computer", "science"], ["AI"]]
+    # Split query
     query_parts = query.split(" AND ")
-    tokenized_terms = [tokenize_query(term, True) for term in query_parts]
 
-    # Filter empty terms lists since previous method may create empty lists from filtering stopwords
-    # tokenized_terms may be [["computer", "science"], [], ["AI"]], so we delete the empty middle list
-    tokenized_terms = [terms for terms in tokenized_terms if terms]
-
-    # Condense list of lists into a single list
-    # tokenized_terms = [["computer", "science"], ["AI"]] -> all_query_tokens = ["computer", "science", "AI"]
-    all_query_tokens = [token for terms_tokens in tokenized_terms for token in terms_tokens]
-
-    # Empty query
-    if not all_query_tokens:
+    # Tokenize each part of the query
+    tokenized_parts = []
+    for part in query_parts:
+        tokens = tokenize_query(part, True)
+        if tokens:
+            tokenized_parts.append(tokens)
+    
+    # Avoid no valid parts
+    if not tokenized_parts:
         return []
 
-    # Load associated alphabetical indexes
-    # all_query_tokens = ["computer", "science", "AI"] -> ./index/terms_C.pkl, ./index/terms_S.pkl, ./index/terms_A.pkl
-    partial_index = load_alphabetical_index(final_dir, all_query_tokens)
+    # Get rid of empty lists in the list of lists 
+    query_tokens = [token for part in tokenized_parts for token in part]
 
-    documents_with_terms = []
+    # Load partial index associated with the user query
+    term_data = load_term_data(query_tokens, final_dir)
 
-    # Goes through each document looking for tokenized_terms
-    # Does ./index/terms_C.pkl actually contain "computer"?
-    for term_tokens in tokenized_terms:
-        
-        # Filter valid tokens that actually exist in partial index
-        # valid_tokens contains ["computer", "science"] if terms_C.pkl, terms_S.pkl actually "computer" and "science", but terms_A.pkl does not contain "AI"
-        valid_tokens = [token for token in term_tokens if token in partial_index]
+    # Running list to track intersection of documents
+    candidate_docs = None
 
-        # No terms in partial index-- no documents associated with tokens that user wants
+    # Iterates through all query tokens (not including "AND" of course)
+    for tokens in tokenized_parts:
+        part_docs = set()
+
+        # Track only the tokens found in term_data == term.pkl files (recall: (term : (docID : freq)))
+        valid_tokens = [token for token in tokens if token in term_data]
+
+        # No tokens found in term.pkl files
         if not valid_tokens:
             return []
         
-        # Retrieves documents for each token in valid_tokens
-        doc_set = set() # Stores all documents containing "computer" and "science", for example
+        # Store all document IDs that contain tokens in valid_tokens
         for token in valid_tokens:
-            if not doc_set:
-                # Adds to list
-                doc_set = set(partial_index[token].keys())
-            else:
-                # Prevents duplicates   
-                doc_set |= set(partial_index[token].keys())
-
-        documents_with_terms.append(doc_set)
-
-    # No documents containing tokenized words
-    if not documents_with_terms:
-        return []
-
-    # Perform intersection for all valid tokens
-    list_of_docs = documents_with_terms[0]
-
-    for docs in documents_with_terms[1:]:  # Start from the second token
-        list_of_docs &= docs
-
-        # If intersection is empty, return early
-        if not list_of_docs:
+            part_docs.update(term_data[token].keys())
+        
+        # Perform intersection on documents in candidate_docs to ensure AND
+        if candidate_docs is None:
+            candidate_docs = part_docs
+        else:
+            candidate_docs &= part_docs
+        
+        # No intersection between any documents
+        if not candidate_docs:
             return []
 
-    # Track document scores (only for docs in doc_set)
+    # Track tf-idf scores
     document_scores = Counter()
 
-    for token in all_query_tokens:
-        if token in partial_index:
-            for doc_url in list_of_docs:
-                if doc_url in partial_index[token]:
-                    document_scores[doc_url] += partial_index[token][doc_url]
+    N_directory = os.path.join(final_dir, f"total_documents.pkl")
+    N = load_partial_inverted_index(N_directory)
 
-    # Get top url_count documents with highest scores
+    # Calculate tf-idf scores
+    for token in query_tokens:
+        if token in term_data:
+            dft = len(term_data[token])
+            if dft > 0:   
+                idf = math.log(N / dft)
+                for doc_id in candidate_docs:
+                    if doc_id in term_data[token]:
+                        tf = term_data[token][doc_id]
+                        wtd = (1+math.log(tf) * math.log(N/dft))
+                        document_scores[doc_id] += wtd
+    
+    # Get top 5 documents with highest scores
     top_docs = heapq.nlargest(url_count, document_scores.items(), key=lambda x: x[1])
 
-    return top_docs  # Return only document URLs
+    return top_docs
 
 
 def run_search_interface():
@@ -200,8 +272,11 @@ def run_search_interface():
 
     global final_dir
 
+    # Prompts
     print("\nNote: Enter 'exit' to quit program.")
     print("Note 2: use 'AND' between terms to find documents containing both terms.")
+
+    # Continue until user enters "exit"
     while True:
         query = input("\nEnter your search query: ")
         
@@ -213,9 +288,10 @@ def run_search_interface():
             print("Exiting search.")
             break
         
+        # Go through index using query terms
         results = search(query, final_dir)
 
-        #End the timer
+        # End the timer
         time_end = time.perf_counter()
         elapsed_time = (time_end - time_start) * 1000 # calculates our query time in ms
         
