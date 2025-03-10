@@ -1,0 +1,37 @@
+Testing queries
+
+During milestone 2, our search engine gathered the top 5 results according to how often a term appeared in a specific document. Along with the
+fact that queries were sent along with stopwords, this led to a lot of false positives since a query like "master of software engineering"
+would provide documents with a high occurrence of "of" rather than the more important terms like "master," "software," and "engineering."
+
+Queries:
+1) master of software engineering
+    - Problem: returned documents skewed towards documents containing lots of "of"s rather than important terms
+    - Solution: we removed stopwords in a user's query before feeding the new query without stopwords into the search function
+
+2) how to implement a distributed system
+    - Problem: long search times (>1000 ms) for queries that had many tokens
+    - Solution: originally, we had a single term_A.pkl inverted index file for all tokens starting with the letter A,
+                a single term_B.pkl file for all tokens starting with the letter B, and so forth. Although this was faster
+                than loading the entire inverted index into memory, each term.pkl file was still massive. To avoid these long
+                query times, we further split each term.pkl file into "chunks," arbitrarily set at 500 terms per .pkl file.
+                So now term_AP1.pkl contained the first 500 terms starting with "A," term_AP2.pkl the next 500 terms starting with "A..."
+
+3) how to implement a distributed system for processing large scale data in real time using modern frameworks
+    - Problem: still too long search times for queries that had MANY tokens
+    - Solution: implement a look_up table for the previous term.pkl files. We sorted each term inverted index file lexographically
+                and recorded the last term of each chunk. We saved these terms in a key.pkl file for each letter in the format of
+                (token : term.pkl). So, instead of loading ALL .pkl parts of a term's first letter and searching through them, we 
+                can load the much smaller key.pkl file for that letter. If our desired term is lexographically greater than the term 
+                found in the key, load the next key.pkl file. Once we find that our desired term is lexographically smaller than the
+                term on the key, then the term must be found on that key term's term.pkl file. We load that singular term.pkl file
+                instead of having to load all of them at once and search through all terms in all term.pkl files.
+
+4) computer science
+    - Problem: a lot of documents appear that simply contain high occurrences of "computer" and "science", but not "computer science"
+    - Solution: while this was not a complete fix, we added tf-idf scoring rather than a straight count of the tokens of a user's query.
+                To be completely honest, we should have implemented positional scoring and perhaps a function that ranked
+                documents higher where query terms appear closer together, but we did not have the time nor expertise to do so.
+                tf-idf scoring did help eliminate large files that "computer" and "science" made up a low percentage of the total number
+                of words, but some other queries, such as "bachelors of computer science" still returned documents with high
+                occurrences of "computer" and "science."
