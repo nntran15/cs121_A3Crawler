@@ -16,6 +16,11 @@ pip install -r requirements.txt
 python -c "import nltk; nltk.download("punkt_tab") # if you do not have punkt_tab for nltk installed
 ```
 
+Now create a file named .env in the backend directory and put in your gemini key:
+```
+GEMINI_KEY='YOUR_KEY_HERE'
+```
+
 ## Run Instructions
 
 Move into the backend directory and run the following commands:
