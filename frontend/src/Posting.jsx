@@ -2,7 +2,7 @@ import {React, useState, useEffect} from "react";
 import axios from 'axios'
 
 // path for summary request
-const path = "http://127.0.0.1:5000/summary"
+const path = "/summary"
 
 const Posting = ({ num, url }) => {
 

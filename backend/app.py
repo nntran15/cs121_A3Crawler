@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
@@ -8,12 +8,13 @@ from google.genai import types
 
 import os
 import requests
+import time
 
 from search import search
 dir = './index'
 
 # Setup flask
-app = Flask(__name__)
+app = Flask(__name__, template_folder='dist', static_url_path='', static_folder='dist')
 CORS(app)
 
 # load env vars
@@ -23,15 +24,21 @@ load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_KEY"))
 sys_instruct = "You are a website summarizer for a search engine. Your goal is to summarize scraped clean text for users to look at. Summarize the following content"
 
+@app.route("/")
+def index():
+    return render_template('index.html')
+
 # Search functionality
 @app.get('/search')
 def search_path():
     query = request.args.get('q')
     if not query:
         return "error: no query provided", 400
-
+    
+    time_start = time.perf_counter()
     urls = search(query, dir)
-
+    print(f"Time took: {time.perf_counter() - time_start}ms for query - {query}")
+    
     return jsonify([url[0] for url in urls])
 
 # LLM summary
