@@ -2,14 +2,16 @@ import { React, useState } from 'react'
 import axios from 'axios'
 import Posting from "./Posting"
 
+// path for search http request
 const path = "http://127.0.0.1:5000/search"
 
 const App = () => {
 
-  const [search, setSearch] = useState("")
-  const [result, setResult] = useState(null)
-  const [time, setTime] = useState(null)
+  const [search, setSearch] = useState("")        // search query
+  const [result, setResult] = useState(null)      // results from http requests for search query
+  const [time, setTime] = useState(null)          // time for getting results from query
   
+  // handle search submit
   const handleSubmit = (e) => {
     e.preventDefault()
     const start = performance.now()
@@ -27,6 +29,7 @@ const App = () => {
     }) 
   }
 
+  // for handling enter key 
   const handleKeyDown = (e) => {
     if(e.key == 'Enter')
       handleSubmit(e)
