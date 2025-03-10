@@ -7,5 +7,6 @@ tmp
 index
 env
 
+.env
 node_modules
 __pycache__

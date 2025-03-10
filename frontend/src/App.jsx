@@ -1,5 +1,6 @@
 import { React, useState } from 'react'
 import axios from 'axios'
+import Posting from "./Posting"
 
 const path = "http://127.0.0.1:5000/search"
 
@@ -47,10 +48,7 @@ const App = () => {
         {
           result == null ? null : result.map((url, i) => {
             return (
-              <div>
-                <br />
-                <a href="url">{`${i+1}. ${url}`}</a>
-              </div>
+              <Posting url={url} num={i} />
             )
           })
         }
