@@ -44,11 +44,12 @@ def summarize():
     # scraping time
     page = requests.get(url)
     soup = BeautifulSoup(page.content, 'html.parser')
-    
+    clean_text = soup.get_text()
+    clean_text = clean_text[:150000] + (clean_text[150000:] and '... truncated because text exceeded 150,000 characters')
     # gemini time
     response = client.models.generate_content(
         model='gemini-1.5-flash',
-        contents=[soup.get_text()],
+        contents=[f'URL: {url}, content: {clean_text}'],
         config=types.GenerateContentConfig(
             system_instruction=sys_instruct
         )
