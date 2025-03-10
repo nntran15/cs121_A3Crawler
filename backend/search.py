@@ -254,7 +254,6 @@ def boolean_query(query, final_dir):
         if token in term_data:
             dft = len(term_data[token])
             if dft > 0:   
-                idf = math.log(N / dft)
                 for doc_id in candidate_docs:
                     if doc_id in term_data[token]:
                         tf = term_data[token][doc_id]
